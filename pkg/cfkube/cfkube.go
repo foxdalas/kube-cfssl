@@ -13,6 +13,9 @@ import (
 	"time"
 	"cfssl-kube/pkg/cfssl"
 	"k8s.io/client-go/kubernetes"
+	"encoding/pem"
+	"crypto/x509"
+	"crypto/tls"
 )
 
 var _ cfkube.CFKube = &CFKube{}
@@ -64,20 +67,27 @@ func (cf *CFKube) Init() {
 		for timestamp := range ticker.C {
 			cf.Log().Infof("Periodically check certificates at %s", timestamp)
 			for _, namespace := range cf.cfKubeNamespaces {
-				cf.Log().Infoln("Checking namespace: ", namespace)
+				cf.cfNamespace = namespace
+				cf.cfSecretName = "cfssl-tls-secret"
+				cf.Log().Infoln("Checking namespace: ", cf.cfNamespace)
+
+
 				s := secret.New(cf, namespace, "cfssl-tls-secret")
-				//s.SecretApi.Data["test"] = []byte("ololo")
+
+				s.SecretApi.Name = "cfssl-tls-secret"
+				s.SecretApi.Namespace = namespace
 
 				if !s.Exists() {
-					cf.Log().Printf("Secret for namespace %s is not exist", namespace)
-
+					cf.Log().Printf("Secret for namespace %s is not exist", cf.cfNamespace)
+					cf.SaveSecret(cs.GetCertificate(cf.cfAddress, cf.cfAuthKey, cf.cfCSRConfig, cs.CreateKey()))
+				} else {
+					cf.Log().Printf("Secret for namespace %s already exist", cf.cfNamespace)
+					validate := cf.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"])
+					if !validate {
+						cf.SaveSecret(cs.GetCertificate(cf.cfAddress, cf.cfAuthKey, cf.cfCSRConfig, cs.CreateKey()))
+					}
 				}
-
 			}
-
-			//Generating new data
-			//TODO: Add certificate check in secret
-			cf.Log().Infoln(cs.GetCertificate(cf.cfAddress, cf.cfAuthKey, cf.cfCSRConfig, cs.CreateKey()))
 		}
 	}()
 
@@ -183,4 +193,65 @@ func (cf *CFKube) paramsCF() error {
 	}
 
 	return nil
+}
+
+func (cf *CFKube) SaveSecret(data map[string][]byte) error {
+	s := cf.cfsslSecret()
+	s.SecretApi.Data = data
+	return s.Save()
+}
+
+func (c *CFKube) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) bool {
+	check := true
+
+	block, _ := pem.Decode(certByte)
+	if block == nil {
+		c.Log().Errorln("Failed to parse certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		c.Log().Printf("Failed to parse certificate: " + err.Error())
+	}
+	if (cert.NotAfter.Unix() - time.Now().Unix()) < int64(cfkube.ExpireThreshold) {
+		c.Log().Warningf("Certificate expire date > Threshold ")
+		check = false
+	} else {
+		c.Log().Infoln("Certificate expire date is OK")
+	}
+
+	_, err = tls.X509KeyPair(certByte, keyByte)
+	if err != nil {
+		c.Log().Warningln("Certificate cert/key is mismatch")
+		check = false
+	} else {
+		c.Log().Infoln("Certificate cert/key is OK")
+	}
+
+	roots := x509.NewCertPool()
+	ok := roots.AppendCertsFromPEM(caByte)
+	if !ok {
+		log.Warnln("Failed to parse root certificate")
+		check = false
+	}
+
+	for _, dnsName := range cert.DNSNames {
+		opts := x509.VerifyOptions{
+			DNSName: dnsName,
+			Roots:   roots,
+		}
+		c.Log().Infof("Validating certificate for DNS name: %s",dnsName )
+		if _, err := cert.Verify(opts); err != nil {
+			c.Log().Warnf("failed to verify certificate: " + err.Error())
+			check = false
+		} else {
+			c.Log().Infof("Certificate is valid for %s", dnsName)
+		}
+	}
+
+	if check {
+		//Information about certificate
+		c.Log().Infof("Certificate is valid. Expire Date %s", cert.NotAfter)
+	}
+
+	return check
 }

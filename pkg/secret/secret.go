@@ -86,3 +86,19 @@ func (o *Secret) tlsCertPem() (cert *x509.Certificate, err error) {
 
 	return x509.ParseCertificate(block.Bytes)
 }
+
+func (o *Secret) Save() (err error) {
+	var obj *k8sApi.Secret
+	if o.exists {
+		obj, err = o.client().Update(o.SecretApi)
+	} else {
+		obj, err = o.client().Create(o.SecretApi)
+	}
+	if err != nil {
+		o.Log().Warn("Error while storing secret: ", err)
+		return
+	}
+	o.Log().Info("Secret successfully stored")
+	o.SecretApi = obj
+	return
+}

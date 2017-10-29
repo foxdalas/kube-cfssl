@@ -17,6 +17,7 @@ type CFKube interface {
 
 	CFKubeCheckInterval() time.Duration
 	CFNamespace() string
+	//ValidateTLS() bool
 }
 
 

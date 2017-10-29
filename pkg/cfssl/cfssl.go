@@ -33,6 +33,11 @@ func New(cfKube cfkube.CFKube) *Cfssl {
 	return c
 }
 
+func getBundle(cert []byte, ca []byte, key []byte) []byte {
+	bundle := string(cert) + string(ca) + "\n" + string(key)
+	return []byte(bundle)
+}
+
 func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig []byte, privateKey []byte ) (map[string][]byte) {
 
 	data := make(map[string][]byte)
@@ -56,7 +61,14 @@ func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig []byte, 
 	defer resp.Body.Close()
 
 	body, _ := ioutil.ReadAll(resp.Body)
-	data["crt.pem"] = c.getCRT(resp.StatusCode, string(body))
+
+	cert := c.getCRT(resp.StatusCode, string(body))
+	ca := c.getCA(pkiURL,"info")
+	bundle := getBundle(cert, ca, privateKey)
+
+	data["crt.pem"] = cert
+	data["ca.pem"] = ca
+	data["bundle.pem"] = bundle
 
 	return data
 }
@@ -80,6 +92,23 @@ func (c *Cfssl) CreateKey() []byte {
 	priv_pem := pem.EncodeToMemory(&priv_blk);
 
 	return priv_pem
+}
+
+func (c *Cfssl) getCA(pkiURL string, method string) []byte {
+	var infoResponse InfoResponse
+	var jsonStr = []byte(`{"profile": "peer"}`)
+	req, err := http.NewRequest("POST", pkiURL + cfkube.PKIUri + method, bytes.NewBuffer(jsonStr))
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	c.checkError(err)
+
+	defer resp.Body.Close()
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	json.Unmarshal([]byte(body), &infoResponse)
+
+	return []byte(infoResponse.Result.Certificate)
 }
 
 func (c *Cfssl) createCSR(keyPlain string) []byte {
@@ -135,3 +164,4 @@ func (c *Cfssl) checkError(err error) {
 		os.Exit(1)
 	}
 }
+

@@ -42,3 +42,14 @@ type Response struct {
 	Errors   []interface{} `json:"errors"`
 	Messages []interface{} `json:"messages"`
 }
+
+type InfoResponse struct {
+	Success bool `json:"success"`
+	Result  struct {
+		Certificate string   `json:"certificate"`
+		Usages      []string `json:"usages"`
+		Expiry      string   `json:"expiry"`
+	} `json:"result"`
+	Errors   []interface{} `json:"errors"`
+	Messages []interface{} `json:"messages"`
+}

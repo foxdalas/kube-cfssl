@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cfssl-kube/pkg/cfkube"
+	"github.com/foxdalas/cfssl-kube/pkg/cfkube"
 )
 
 var AppVersion = "unknown"
@@ -20,7 +20,6 @@ func Version() string {
 	}
 	return version
 }
-
 
 func main() {
 	cf := cfkube.New(Version())

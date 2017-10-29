@@ -1,0 +1,46 @@
+version: 2
+defaults: &defaults
+  working_directory: /go/src/github.com/foxdalas/cfssl-kube
+  docker:
+    - image: circleci/golang:1.9.1
+      environment:
+        DOCKER_IMAGE_NAME: foxdalas/cfssl-kube
+        QUAY_IMAGE_NAME: quay.io/foxdalas/cfssl-kube
+        REPO_PATH: cfssl-kube
+
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build Project
+          command: |
+            make build
+            docker login -u $DOCKER_LOGIN -p $DOCKER_PASSWORD
+            BUILD_TAG="build"
+            GIT_COMMIT=`git rev-parse HEAD`
+            GIT_TAGS=`git tag --contains $GIT_COMMIT`
+            DOCKER_IMAGE="$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME"
+            if [[ $GIT_TAGS = "" ]]
+            then
+              IMAGE_TAGS="canary"
+            else
+              IMAGE_TAGS=`echo -e "$GIT_TAGS\nlatest"`
+            fi
+            make image
+            for tag in $IMAGE_TAGS; do
+              echo $tag
+              docker tag  $DOCKER_IMAGE:$BUILD_TAG $DOCKER_IMAGE:$tag
+              docker push $DOCKER_IMAGE:$tag
+            done
+            cp Dockerfile _build/
+            cp Makefile _build/
+            docker images
+      - store_artifacts:
+          path: /go/src/github.com/foxdalas/cfssl-kube/_build
+          destination: cfssl-kube
+      - persist_to_workspace:
+          root: /go/src/github.com/foxdalas
+          paths: cfssl-kube

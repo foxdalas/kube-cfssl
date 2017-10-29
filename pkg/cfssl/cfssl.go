@@ -1,22 +1,22 @@
 package cfssl
 
 import (
-	"cfssl-kube/pkg/cfkube_const"
-	"github.com/sirupsen/logrus"
-	"fmt"
-	"encoding/hex"
-	"encoding/base64"
-	"encoding/json"
-	"crypto/hmac"
-	"crypto/sha256"
-	"crypto/rsa"
-	"crypto/rand"
-	"os"
-	"encoding/pem"
-	"io/ioutil"
-	"crypto/x509"
-	"net/http"
 	"bytes"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
+	"fmt"
+	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
+	"github.com/sirupsen/logrus"
+	"io/ioutil"
+	"net/http"
+	"os"
 )
 
 func New(cfKube cfkube.CFKube) *Cfssl {
@@ -38,14 +38,14 @@ func getBundle(cert []byte, ca []byte, key []byte) []byte {
 	return []byte(bundle)
 }
 
-func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig []byte, privateKey []byte ) (map[string][]byte) {
+func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig []byte, privateKey []byte) map[string][]byte {
 
 	data := make(map[string][]byte)
 	data["crt.key"] = privateKey
 
 	var csrJson Request
 	json.Unmarshal(csrConfig, &csrJson)
-	csr :=  c.createCSR(string(data["crt.key"]))
+	csr := c.createCSR(string(data["crt.key"]))
 	csrJson.CertificateRequest = string(csr)
 	byteRequest, _ := json.Marshal(csrJson)
 	jsonByte := []byte(byteRequest)
@@ -63,7 +63,7 @@ func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig []byte, 
 	body, _ := ioutil.ReadAll(resp.Body)
 
 	cert := c.getCRT(resp.StatusCode, string(body))
-	ca := c.getCA(pkiURL,"info")
+	ca := c.getCA(pkiURL, "info")
 	bundle := getBundle(cert, ca, privateKey)
 
 	data["crt.pem"] = cert
@@ -81,15 +81,15 @@ func (c *Cfssl) CreateKey() []byte {
 	key, err := rsa.GenerateKey(rand.Reader, cfkube.RsaKeySize)
 	c.checkError(err)
 
-	priv_der := x509.MarshalPKCS1PrivateKey(key);
+	priv_der := x509.MarshalPKCS1PrivateKey(key)
 
-	priv_blk := pem.Block {
-		Type: "RSA PRIVATE KEY",
+	priv_blk := pem.Block{
+		Type:    "RSA PRIVATE KEY",
 		Headers: nil,
-		Bytes: priv_der,
+		Bytes:   priv_der,
 	}
 
-	priv_pem := pem.EncodeToMemory(&priv_blk);
+	priv_pem := pem.EncodeToMemory(&priv_blk)
 
 	return priv_pem
 }
@@ -97,7 +97,7 @@ func (c *Cfssl) CreateKey() []byte {
 func (c *Cfssl) getCA(pkiURL string, method string) []byte {
 	var infoResponse InfoResponse
 	var jsonStr = []byte(`{"profile": "peer"}`)
-	req, err := http.NewRequest("POST", pkiURL + cfkube.PKIUri + method, bytes.NewBuffer(jsonStr))
+	req, err := http.NewRequest("POST", pkiURL+cfkube.PKIUri+method, bytes.NewBuffer(jsonStr))
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -127,7 +127,7 @@ func (c *Cfssl) createCSR(keyPlain string) []byte {
 }
 
 func (c *Cfssl) constructAuthRequest(key string, request []byte) string {
-	reqData := AuthRequest {c.ComputeHmac256(request, key),base64.StdEncoding.EncodeToString(request)}
+	reqData := AuthRequest{c.ComputeHmac256(request, key), base64.StdEncoding.EncodeToString(request)}
 	reqJson, _ := json.Marshal(reqData)
 	jsonStr := string(reqJson)
 	c.Log().Infoln("Processing certificate request")
@@ -135,7 +135,7 @@ func (c *Cfssl) constructAuthRequest(key string, request []byte) string {
 	return jsonStr
 }
 
-func (c *Cfssl) ComputeHmac256(message []byte, secret string) string{
+func (c *Cfssl) ComputeHmac256(message []byte, secret string) string {
 	b, _ := hex.DecodeString(secret)
 	h := hmac.New(sha256.New, []byte(b))
 	h.Write(message)
@@ -143,7 +143,7 @@ func (c *Cfssl) ComputeHmac256(message []byte, secret string) string{
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-func (c *Cfssl) getCRT(responseCode int, responseBody string) ([]byte) {
+func (c *Cfssl) getCRT(responseCode int, responseBody string) []byte {
 	certificate := []byte(nil)
 
 	if responseCode == 200 {
@@ -164,4 +164,3 @@ func (c *Cfssl) checkError(err error) {
 		os.Exit(1)
 	}
 }
-

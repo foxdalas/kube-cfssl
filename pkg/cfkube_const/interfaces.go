@@ -2,12 +2,10 @@ package cfkube
 
 import (
 	"github.com/sirupsen/logrus"
-	"time"
-	k8sApi "k8s.io/client-go/kubernetes"
-	//k8sExtensions "k8s.io/api/extensions/v1beta1"
 	k8sCore "k8s.io/api/core/v1"
+	k8sApi "k8s.io/client-go/kubernetes"
+	"time"
 )
-
 
 type CFKube interface {
 	KubeClient() *k8sApi.Clientset
@@ -19,7 +17,6 @@ type CFKube interface {
 	CFNamespace() string
 	//ValidateTLS() bool
 }
-
 
 type Cfssl interface {
 	GetCertificate() string

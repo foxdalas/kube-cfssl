@@ -1,21 +1,21 @@
 package cfkube
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
-	"sync"
-	cfkube "cfssl-kube/pkg/cfkube_const"
-	"cfssl-kube/pkg/secret"
+	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
+	"github.com/foxdalas/cfssl-kube/pkg/cfssl"
+	"github.com/foxdalas/cfssl-kube/pkg/secret"
 	log "github.com/sirupsen/logrus"
-	"strings"
+	"k8s.io/client-go/kubernetes"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
-	"cfssl-kube/pkg/cfssl"
-	"k8s.io/client-go/kubernetes"
-	"encoding/pem"
-	"crypto/x509"
-	"crypto/tls"
 )
 
 var _ cfkube.CFKube = &CFKube{}
@@ -52,25 +52,21 @@ func (cf *CFKube) Init() {
 		cf.Log().Fatal(err)
 	}
 
-
-
 	err = cf.InitKube()
 	if err != nil {
 		cf.Log().Fatal(err)
 	}
 
-
 	cf.Log().Infoln("Periodically check start")
 	ticker := time.NewTicker(cf.cfCheckInterval)
 	cs := cfssl.New(cf)
 	go func() {
-		for timestamp := range ticker.C {
+		timestamp := time.Now()
 			cf.Log().Infof("Periodically check certificates at %s", timestamp)
 			for _, namespace := range cf.cfKubeNamespaces {
 				cf.cfNamespace = namespace
 				cf.cfSecretName = "cfssl-tls-secret"
-				cf.Log().Infoln("Checking namespace: ", cf.cfNamespace)
-
+				cf.Log().Infoln("Checking namespace:", cf.cfNamespace)
 
 				s := secret.New(cf, namespace, "cfssl-tls-secret")
 
@@ -84,11 +80,12 @@ func (cf *CFKube) Init() {
 					cf.Log().Printf("Secret for namespace %s already exist", cf.cfNamespace)
 					validate := cf.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"])
 					if !validate {
-						cf.SaveSecret(cs.GetCertificate(cf.cfAddress, cf.cfAuthKey, cf.cfCSRConfig, cs.CreateKey()))
+						//cf.SaveSecret(cs.GetCertificate(cf.cfAddress, cf.cfAuthKey, cf.cfCSRConfig, cs.CreateKey()))
+						cf.Log().Println("Certificate validation problem.")
 					}
 				}
 			}
-		}
+		<- ticker.C
 	}()
 
 	<-cf.stopCh
@@ -130,7 +127,6 @@ func makeLog() *log.Entry {
 	return log.WithField("context", "cfkube")
 }
 
-
 func (cf *CFKube) Version() string {
 	return cf.version
 }
@@ -160,7 +156,6 @@ func (cf *CFKube) cfsslSecret() *secret.Secret {
 	return secret.New(cf, cf.cfNamespace, cf.cfSecretName)
 }
 
-
 func (cf *CFKube) paramsCF() error {
 
 	cf.cfAddress = os.Getenv("CFKUBE_CFSSL_ADDRESS")
@@ -187,7 +182,7 @@ func (cf *CFKube) paramsCF() error {
 		cf.cfKubeApiURL = "http://127.0.0.1:8080"
 	}
 
-	cf.cfKubeNamespaces = strings.Split(os.Getenv("CFKUBE_NAMESPACES"),",")
+	cf.cfKubeNamespaces = strings.Split(os.Getenv("CFKUBE_NAMESPACES"), ",")
 	if len(cf.cfKubeNamespaces) == 0 {
 		return errors.New("Please provide the namespaces via environment variable CFKUBE_NAMESPACES (default,test,production)")
 	}
@@ -202,19 +197,21 @@ func (cf *CFKube) SaveSecret(data map[string][]byte) error {
 }
 
 func (c *CFKube) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) bool {
-	check := true
 
 	block, _ := pem.Decode(certByte)
+
 	if block == nil {
 		c.Log().Errorln("Failed to parse certificate PEM")
+		return false
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		c.Log().Printf("Failed to parse certificate: " + err.Error())
+		c.Log().Printf("Failed to parse certificate: %s", err)
+		return false
 	}
 	if (cert.NotAfter.Unix() - time.Now().Unix()) < int64(cfkube.ExpireThreshold) {
 		c.Log().Warningf("Certificate expire date > Threshold ")
-		check = false
+		return false
 	} else {
 		c.Log().Infoln("Certificate expire date is OK")
 	}
@@ -222,7 +219,7 @@ func (c *CFKube) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) boo
 	_, err = tls.X509KeyPair(certByte, keyByte)
 	if err != nil {
 		c.Log().Warningln("Certificate cert/key is mismatch")
-		check = false
+		return false
 	} else {
 		c.Log().Infoln("Certificate cert/key is OK")
 	}
@@ -231,7 +228,7 @@ func (c *CFKube) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) boo
 	ok := roots.AppendCertsFromPEM(caByte)
 	if !ok {
 		log.Warnln("Failed to parse root certificate")
-		check = false
+		return false
 	}
 
 	for _, dnsName := range cert.DNSNames {
@@ -239,19 +236,14 @@ func (c *CFKube) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) boo
 			DNSName: dnsName,
 			Roots:   roots,
 		}
-		c.Log().Infof("Validating certificate for DNS name: %s",dnsName )
+		c.Log().Infof("Validating certificate for DNS name: %s", dnsName)
 		if _, err := cert.Verify(opts); err != nil {
 			c.Log().Warnf("failed to verify certificate: " + err.Error())
-			check = false
+			return false
 		} else {
 			c.Log().Infof("Certificate is valid for %s", dnsName)
 		}
 	}
 
-	if check {
-		//Information about certificate
-		c.Log().Infof("Certificate is valid. Expire Date %s", cert.NotAfter)
-	}
-
-	return check
+	return true
 }

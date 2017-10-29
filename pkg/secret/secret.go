@@ -1,31 +1,31 @@
 package secret
 
 import (
-	"cfssl-kube/pkg/cfkube_const"
+	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
 
+	k8sApi "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sApiTyped "k8s.io/client-go/kubernetes/typed/core/v1"
-	k8sApi 	"k8s.io/api/core/v1"
 
-	"github.com/sirupsen/logrus"
 	"crypto/x509"
-	"fmt"
 	"encoding/pem"
+	"fmt"
+	"github.com/sirupsen/logrus"
+	"time"
 )
 
 func New(client cfkube.CFKube, namespace string, name string) *Secret {
 	secret := &Secret{
-		exists:   true,
+		exists: true,
 		cfkube: client,
 	}
-
 
 	var err error
 	secret.SecretApi, err = client.KubeClient().CoreV1().Secrets(namespace).Get(name, k8sMeta.GetOptions{})
 	if err != nil {
 		if k8sErrors.IsNotFound(err) {
-			secret.SecretApi = &k8sApi.Secret {
+			secret.SecretApi = &k8sApi.Secret{
 				ObjectMeta: k8sMeta.ObjectMeta{
 					Namespace: namespace,
 					Name:      name,
@@ -35,6 +35,9 @@ func New(client cfkube.CFKube, namespace string, name string) *Secret {
 			secret.exists = false
 		} else {
 			client.Log().Warn("Error while getting secret: ", err)
+			client.Log().Warn("Retrying...")
+			time.Sleep(time.Second * 60)
+			return New(client, namespace, name)
 		}
 	}
 

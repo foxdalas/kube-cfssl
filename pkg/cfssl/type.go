@@ -1,22 +1,22 @@
 package cfssl
 
 import (
-	"cfssl-kube/pkg/cfkube_const"
+	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
 	"github.com/sirupsen/logrus"
 )
 
 type Cfssl struct {
 	cfkube.Cfssl
 
-	log            *logrus.Entry
+	log *logrus.Entry
 
-	cfkube       cfkube.CFKube
+	cfkube cfkube.CFKube
 
 	notFound string
 }
 
 type AuthRequest struct {
-	Token string `json:"token"`
+	Token   string `json:"token"`
 	Request string `json:"request"`
 }
 

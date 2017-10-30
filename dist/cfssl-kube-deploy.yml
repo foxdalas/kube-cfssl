@@ -1,0 +1,26 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: cfssl-kube
+  namespace: kube-cfssl
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cfssl-kube
+    spec:
+      restartPolicy: Always
+      containers:
+      - image: foxdalas/cfssl-kube:0.0.1
+        imagePullPolicy: IfNotPresent
+        name: cfssl-kube
+        env:
+          - name: CFKUBE_CFSSL_ADDRESS
+            value: https://pki.example.com
+          - name: CFKUBE_CFSSL_AUTH_KEY
+            value: VerySecretKey
+          - name: CFKUBE_CFSSL_CSR
+            value: ""
+          - name: CFKUBE_NAMESPACES
+            value: cfssl-gate

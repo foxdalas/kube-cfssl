@@ -1,0 +1,41 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: cfssl-secret-admin
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs:
+  - get
+  - watch
+  - list
+  - create
+  - update
+  - patch
+- apiGroups: [""]
+  resources: ["services"]
+  verbs:
+  - get
+  - create
+- apiGroups: ["extensions"]
+  resources: ["cfssl"]
+  verbs:
+  - get
+  - watch
+  - list
+  - create
+  - update
+  - patch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: cfssl-kube
+roleRef:
+  kind: ClusterRole
+  name: cfssl-secret-admin
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: infra

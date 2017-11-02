@@ -26,6 +26,7 @@ type KubeCfssl struct {
 	kubeClient *kubernetes.Clientset
 	kubeApiURL     string
 	kubeNamespaces []string
+	kubeSecretName string
 
 	stopCh    chan struct{}
 	waitGroup sync.WaitGroup

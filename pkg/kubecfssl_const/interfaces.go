@@ -12,14 +12,11 @@ type KubeCfssl interface {
 
 	Version() string
 	Log() *logrus.Entry
-
-	KubeCheckInterval() time.Duration
 	Namespace() string
 }
 
 type Cfssl interface {
 	GetCertificate() string
-	CreateKey() []byte
 }
 
 type Secret interface {

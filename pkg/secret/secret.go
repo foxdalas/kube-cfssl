@@ -68,7 +68,7 @@ func (o *Secret) Validate() int {
 	//5 - Failed to parse ROOT Certificate
 	//6 - Failed to validate certificate for DNS name
 
-	block, _ := pem.Decode(o.SecretApi.Data["crt.pem"])
+	block, _ := pem.Decode(o.SecretApi.Data[kubecfssl.CertificateName])
 	if block == nil {
 		o.Log().Errorln("Failed to parse certificate PEM")
 		return 1
@@ -87,7 +87,7 @@ func (o *Secret) Validate() int {
 		o.Log().Infoln("Certificate expire date is OK")
 	}
 
-	_, err = tls.X509KeyPair(o.SecretApi.Data["crt.pem"], o.SecretApi.Data["crt.key"])
+	_, err = tls.X509KeyPair(o.SecretApi.Data[kubecfssl.CertificateName], o.SecretApi.Data[kubecfssl.CertificateKeyName])
 	if err != nil {
 		o.Log().Warningln("Certificate cert/key is mismatch")
 		return 4
@@ -96,7 +96,7 @@ func (o *Secret) Validate() int {
 	}
 
 	roots := x509.NewCertPool()
-	ok := roots.AppendCertsFromPEM(o.SecretApi.Data["ca.pem"])
+	ok := roots.AppendCertsFromPEM(o.SecretApi.Data[kubecfssl.RootCertificateName])
 	if !ok {
 		o.Log().Warnln("Failed to parse root certificate")
 		return 5

@@ -60,37 +60,24 @@ func (kc *KubeCfssl) Init() {
 
 	kc.Log().Infoln("Periodically check start")
 	ticker := time.NewTicker(kc.checkInterval)
-	cs := cfssl.New(kc)
+
 	go func() {
-		timestamp := time.Now()
+		for {
+			timestamp := time.Now()
 			kc.Log().Infof("Periodically check certificates at %s", timestamp)
 			for _, namespace := range kc.kubeNamespaces {
+
 				kc.namespace = namespace
 				kc.secretName = "cfssl-tls-secret"
-				kc.Log().Infoln("Checking namespace:", kc.namespace)
 
-				s := secret.New(kc, namespace, "cfssl-tls-secret")
+				kc.Log().Infoln("Checking namespace:", namespace)
 
-				s.SecretApi.Name = "cfssl-tls-secret"
-				s.SecretApi.Namespace = namespace
-
-				if !s.Exists() {
-					kc.Log().Printf("Secret for namespace %s is not exist", kc.namespace)
-					kc.SaveSecret(cs.GetCertificate(kc.address, kc.authKey, kc.csrConfig, cs.CreateKey()))
-				} else {
-					kc.Log().Printf("Secret for namespace %s already exist", kc.namespace)
-					if s.Validate() != 0 {
-						//More information in ValidateTLS
-						if s.Validate() > 1 {
-							kc.SaveSecret(cs.GetCertificate(kc.address, kc.authKey, kc.csrConfig, cs.CreateKey()))
-						} else {
-							continue
-						}
-						kc.Log().Println("Certificate validation problem.")
-					}
+				if !kc.checkSecret() {
+					kc.SaveSecret()
 				}
 			}
-		<- ticker.C
+			<-ticker.C
+		}
 	}()
 
 	<-kc.stopCh
@@ -98,6 +85,27 @@ func (kc *KubeCfssl) Init() {
 	kc.Log().Infof("exiting")
 	kc.waitGroup.Wait()
 
+}
+
+func (kc *KubeCfssl) checkSecret() bool {
+	s := secret.New(kc, kc.namespace, kc.secretName)
+
+	s.SecretApi.Name = kc.secretName
+	s.SecretApi.Namespace = kc.namespace
+
+	if !s.Exists() {
+		kc.Log().Printf("Secret for namespace %s is not exist", kc.namespace)
+		return false
+	} else {
+		kc.Log().Printf("Secret for namespace %s already exist", kc.namespace)
+		if s.Validate() != 0 {
+			if s.Validate() > 1 {
+				return false
+			}
+			kc.Log().Println("Certificate validation problem.")
+		}
+	}
+	return true
 }
 
 func makeLog() *log.Entry {
@@ -141,14 +149,6 @@ func (kc *KubeCfssl) Stop() {
 	close(kc.stopCh)
 }
 
-func (kc *KubeCfssl) CFNamespace() string {
-	return kc.namespace
-}
-
-func (kc *KubeCfssl) KubeCheckInterval() time.Duration {
-	return kc.checkInterval
-}
-
 func (kc *KubeCfssl) KubeApiURL() string {
 	return kc.kubeApiURL
 }
@@ -160,6 +160,8 @@ func (kc *KubeCfssl) KubeClient() *kubernetes.Clientset {
 func (kc *KubeCfssl) cfsslSecret() *secret.Secret {
 	return secret.New(kc, kc.namespace, kc.secretName)
 }
+
+
 
 func (kc *KubeCfssl) paramsCF() error {
 
@@ -192,11 +194,18 @@ func (kc *KubeCfssl) paramsCF() error {
 		return errors.New("Please provide the namespaces via environment variable NAMESPACES (default,test,production)")
 	}
 
+	kc.kubeSecretName = os.Getenv("SECRET")
+	if len(kc.kubeSecretName) == 0 {
+		kc.kubeSecretName = "cfssl-tls-secret"
+	}
+
 	return nil
 }
 
-func (kc *KubeCfssl) SaveSecret(data map[string][]byte) error {
+func (kc *KubeCfssl) SaveSecret() error {
 	s := kc.cfsslSecret()
-	s.SecretApi.Data = data
+	cf := cfssl.New(kc)
+	s.SecretApi.Data = cf.GetCertificate(kc.address, kc.authKey, kc.csrConfig)
+
 	return s.Save()
 }

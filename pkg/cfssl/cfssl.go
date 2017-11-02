@@ -23,6 +23,7 @@ import (
 func New(kubecfssl kubecfssl.KubeCfssl) *Cfssl {
 	c := &Cfssl{
 		kubecfssl: kubecfssl,
+		certificateData: make(map[string][]byte),
 	}
 
 	if kubecfssl != nil {
@@ -34,56 +35,54 @@ func New(kubecfssl kubecfssl.KubeCfssl) *Cfssl {
 	return c
 }
 
-func getBundle(cert []byte, ca []byte, key []byte) []byte {
-	bundle := string(cert) + string(ca) + "\n" + string(key)
-	return []byte(bundle)
+func (c *Cfssl) getBundle() {
+	c.certificateData[kubecfssl.BundleCertificateName] = []byte(string(string(c.certificateData[kubecfssl.CertificateName]) +
+		string(c.certificateData[kubecfssl.RootCertificateName]) +
+		string(c.certificateData[kubecfssl.CertificateKeyName])))
 }
 
-func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig string, privateKey []byte) map[string][]byte {
+func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig string) map[string][]byte {
+	c.createKey()
+	c.getCRT(c.certificateRequest(pkiURL, authKey,csrConfig))
+	c.getCA(pkiURL, "info")
+	c.getBundle()
+	return c.certificateData
+}
 
-	csrConfigByte, err := ioutil.ReadFile(csrConfig)
-	if err != nil {
-		c.Log().Fatalf("Cant't read CSR Config file %s", csrConfig)
-	}
 
-	data := make(map[string][]byte)
-	data["crt.key"] = privateKey
-
-	var csrJson Request
-	yaml.Unmarshal(csrConfigByte, &csrJson)
-	csr := c.createCSR(string(data["crt.key"]))
-	csrJson.CertificateRequest = string(csr)
-	byteRequest, _ := json.Marshal(csrJson)
-	jsonByte := []byte(byteRequest)
-
-	request := []byte(c.constructAuthRequest(authKey, jsonByte))
+func (c *Cfssl) certificateRequest (pkiURL string, authKey string,csrConfig string) *http.Response {
+	request := []byte(c.constructAuthRequest(authKey, c.getCSRConfig(csrConfig)))
 	url := pkiURL + "/api/v1/cfssl/authsign"
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(request))
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	c.checkError(err)
-
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	return resp
+}
 
-	cert := c.getCRT(resp.StatusCode, string(body))
-	ca := c.getCA(pkiURL, "info")
-	bundle := getBundle(cert, ca, privateKey)
+func (c *Cfssl) getCSRConfig(file string) []byte {
+	csrConfigByte, err := ioutil.ReadFile(file)
+	if err != nil {
+		c.Log().Fatalf("Cant't read CSR Config file %s", file)
+	}
 
-	data["crt.pem"] = cert
-	data["ca.pem"] = ca
-	data["bundle.pem"] = bundle
+	var csrJson Request
+	yaml.Unmarshal(csrConfigByte, &csrJson)
 
-	return data
+	csr := c.createCSR(string(c.certificateData[kubecfssl.CertificateKeyName]))
+	csrJson.CertificateRequest = string(csr)
+	byteRequest, _ := json.Marshal(csrJson)
+	return []byte(byteRequest)
 }
 
 func (c *Cfssl) Log() (log *logrus.Entry) {
 	return c.log
 }
 
-func (c *Cfssl) CreateKey() []byte {
+func (c *Cfssl) createKey() {
 	key, err := rsa.GenerateKey(rand.Reader, kubecfssl.RsaKeySize)
 	c.checkError(err)
 
@@ -96,8 +95,7 @@ func (c *Cfssl) CreateKey() []byte {
 	}
 
 	priv_pem := pem.EncodeToMemory(&priv_blk)
-
-	return priv_pem
+	c.certificateData["crt.key"] = priv_pem
 }
 
 func (c *Cfssl) getCA(pkiURL string, method string) []byte {
@@ -113,6 +111,7 @@ func (c *Cfssl) getCA(pkiURL string, method string) []byte {
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	json.Unmarshal([]byte(body), &infoResponse)
+	c.certificateData[kubecfssl.RootCertificateName] = []byte(infoResponse.Result.Certificate)
 
 	return []byte(infoResponse.Result.Certificate)
 }
@@ -137,6 +136,7 @@ func (c *Cfssl) constructAuthRequest(key string, request []byte) string {
 	reqJson, _ := json.Marshal(reqData)
 	jsonStr := string(reqJson)
 	c.Log().Infoln("Processing certificate request")
+
 	c.Log().Debugln("JSON Request: ", string(jsonStr))
 	return jsonStr
 }
@@ -145,23 +145,21 @@ func (c *Cfssl) ComputeHmac256(message []byte, secret string) string {
 	b, _ := hex.DecodeString(secret)
 	h := hmac.New(sha256.New, []byte(b))
 	h.Write(message)
-	//return string(h.Sum(nil))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-func (c *Cfssl) getCRT(responseCode int, responseBody string) []byte {
-	certificate := []byte(nil)
-
-	if responseCode == 200 {
+func (c *Cfssl) getCRT(resp *http.Response) []byte {
+	if resp.StatusCode  == 200 {
+		body, _ := ioutil.ReadAll(resp.Body)
 		var response Response
-		json.Unmarshal([]byte(responseBody), &response)
+		json.Unmarshal([]byte(body), &response)
 		c.Log().Infoln("Certificate generation complete")
-		certificate = []byte(response.Result.Certificate)
+		c.certificateData[kubecfssl.CertificateName] = []byte(response.Result.Certificate)
+		return []byte(response.Result.Certificate)
 	} else {
-		c.Log().Errorln("Response: ", responseCode)
+		c.Log().Errorln("Response: ", resp.StatusCode)
+		return []byte("123")
 	}
-	return certificate
-
 }
 
 func (c *Cfssl) checkError(err error) {

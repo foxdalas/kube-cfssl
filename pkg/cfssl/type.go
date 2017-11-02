@@ -12,6 +12,7 @@ type Cfssl struct {
 	notFound string
 	log *logrus.Entry
 
+	certificateData map[string][]byte
 }
 
 type AuthRequest struct {

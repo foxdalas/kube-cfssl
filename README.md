@@ -17,3 +17,18 @@ kubectl apply -f https://raw.githubusercontent.com/foxdalas/cfssl-kube/master/di
 ```
 kubectl apply -f https://raw.githubusercontent.com/foxdalas/cfssl-kube/master/dist/cfssl-kube-deploy.yml
 ```
+
+### CSR Example
+```
+---
+certificate_request:
+hosts:
+- example.com
+profile: peer
+subject:
+  names:
+  - C: GB
+    L: London
+    O: Clip LLP
+    OU: IT
+```

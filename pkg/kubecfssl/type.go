@@ -15,7 +15,7 @@ type KubeCfssl struct {
 	//KubeCFSSL Variables
 	address    string
 	authKey    string
-	csrConfig  []byte
+	csrConfig  string
 	namespace  string
 	secretName string
 

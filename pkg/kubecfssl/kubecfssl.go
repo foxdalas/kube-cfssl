@@ -158,33 +158,33 @@ func (kc *KubeCfssl) cfsslSecret() *secret.Secret {
 
 func (kc *KubeCfssl) paramsCF() error {
 
-	kc.address = os.Getenv("CFKUBE_CFSSL_ADDRESS")
+	kc.address = os.Getenv("CFSSL_ADDRESS")
 	if len(kc.address) == 0 {
-		return errors.New("Please provide an address for CFSSL Server in CFKUBE_CFSSL_ADDRESS")
+		return errors.New("Please provide an address for CFSSL Server in CFSSL_ADDRESS")
 	}
 
-	kc.authKey = os.Getenv("CFKUBE_CFSSL_AUTH_KEY")
+	kc.authKey = os.Getenv("CFSSL_AUTH_KEY")
 	if len(kc.authKey) == 0 {
-		return errors.New("Please provide the secret key via environment variable CFKUBE_CFSSL_AUTH_KEY ")
+		return errors.New("Please provide the secret key via environment variable CFSSL_AUTH_KEY ")
 	}
 
-	checkIntervalString := os.Getenv("CFKUBE_CHECK_INTERVAL")
+	checkIntervalString := os.Getenv("CHECK_INTERVAL")
 	if len(checkIntervalString) == 0 {
 		kc.checkInterval = 1 * time.Minute
 	}
-	kc.csrConfig = []byte(os.Getenv("CFKUBE_CFSSL_CSR"))
+	kc.csrConfig = os.Getenv("CSR_CONFIG")
 	if len(kc.csrConfig) == 0 {
-		return errors.New("Please provide the secret key via environment variable CFKUBE_CFSSL_CSR ")
+		return errors.New("Please provide the secret key via environment variable CSR_CONFIG")
 	}
 
-	kc.kubeApiURL = os.Getenv("CFKUBE_KUBE_API_URL")
+	kc.kubeApiURL = os.Getenv("KUBE_API_URL")
 	if len(kc.kubeApiURL) == 0 {
 		kc.kubeApiURL = "http://127.0.0.1:8080"
 	}
 
-	kc.kubeNamespaces = strings.Split(os.Getenv("CFKUBE_NAMESPACES"), ",")
+	kc.kubeNamespaces = strings.Split(os.Getenv("NAMESPACES"), ",")
 	if len(kc.kubeNamespaces) == 0 {
-		return errors.New("Please provide the namespaces via environment variable CFKUBE_NAMESPACES (default,test,production)")
+		return errors.New("Please provide the namespaces via environment variable NAMESPACES (default,test,production)")
 	}
 
 	return nil

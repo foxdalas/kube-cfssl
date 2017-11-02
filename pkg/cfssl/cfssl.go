@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"github.com/ghodss/yaml"
 )
 
 func New(kubecfssl kubecfssl.KubeCfssl) *Cfssl {
@@ -38,13 +39,18 @@ func getBundle(cert []byte, ca []byte, key []byte) []byte {
 	return []byte(bundle)
 }
 
-func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig []byte, privateKey []byte) map[string][]byte {
+func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig string, privateKey []byte) map[string][]byte {
+
+	csrConfigByte, err := ioutil.ReadFile(csrConfig)
+	if err != nil {
+		c.Log().Fatalf("Cant't read CSR Config file %s", csrConfig)
+	}
 
 	data := make(map[string][]byte)
 	data["crt.key"] = privateKey
 
 	var csrJson Request
-	json.Unmarshal(csrConfig, &csrJson)
+	yaml.Unmarshal(csrConfigByte, &csrJson)
 	csr := c.createCSR(string(data["crt.key"]))
 	csrJson.CertificateRequest = string(csr)
 	byteRequest, _ := json.Marshal(csrJson)

@@ -1,0 +1,11 @@
+---
+certificate_request:
+hosts:
+- example.com
+profile: peer
+subject:
+  names:
+  - C: GB
+    L: London
+    O: Clip LLP
+    OU: IT

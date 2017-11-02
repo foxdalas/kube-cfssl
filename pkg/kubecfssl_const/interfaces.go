@@ -15,7 +15,6 @@ type KubeCfssl interface {
 
 	KubeCheckInterval() time.Duration
 	Namespace() string
-	//ValidateTLS() bool
 }
 
 type Cfssl interface {
@@ -27,6 +26,7 @@ type Secret interface {
 	Object() *k8sCore.Secret
 	KubeLego() KubeCfssl
 	Exists() bool
+	Validate() int
 	Save() error
 	TlsDomains() ([]string, error)
 	TlsDomainsInclude(domains []string) bool

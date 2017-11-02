@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"time"
+	"crypto/tls"
 )
 
 func New(client kubecfssl.KubeCfssl, namespace string, name string) *Secret {
@@ -54,6 +55,69 @@ func (o *Secret) Object() *k8sApi.Secret {
 
 func (o *Secret) Exists() bool {
 	return o.exists
+}
+
+func (o *Secret) Validate() int {
+
+	//Error codes:
+	//0 - Without Errors
+	//1 - Failed to decode certificate PEM
+	//2 - Failed to parse certificate PEM
+	//3 - Certificate expire date > Threshold
+	//4 - Certificate and key mismatch
+	//5 - Failed to parse ROOT Certificate
+	//6 - Failed to validate certificate for DNS name
+
+	block, _ := pem.Decode(o.SecretApi.Data["crt.pem"])
+	if block == nil {
+		o.Log().Errorln("Failed to parse certificate PEM")
+		return 1
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		o.Log().Printf("Failed to parse certificate: %s", err)
+		return 2
+	}
+
+	if (cert.NotAfter.Unix() - time.Now().Unix()) < int64(kubecfssl.ExpireThreshold) {
+		o.Log().Warningf("Certificate expire date > Threshold ")
+		return 3
+	} else {
+		o.Log().Infoln("Certificate expire date is OK")
+	}
+
+	_, err = tls.X509KeyPair(o.SecretApi.Data["crt.pem"], o.SecretApi.Data["crt.key"])
+	if err != nil {
+		o.Log().Warningln("Certificate cert/key is mismatch")
+		return 4
+	} else {
+		o.Log().Infoln("Certificate cert/key is OK")
+	}
+
+	roots := x509.NewCertPool()
+	ok := roots.AppendCertsFromPEM(o.SecretApi.Data["ca.pem"])
+	if !ok {
+		o.Log().Warnln("Failed to parse root certificate")
+		return 5
+	}
+
+	for _, dnsName := range cert.DNSNames {
+		opts := x509.VerifyOptions{
+			DNSName: dnsName,
+			Roots:   roots,
+		}
+		o.Log().Infof("Validating certificate for DNS name: %s", dnsName)
+		if _, err := cert.Verify(opts); err != nil {
+			o.Log().Warnf("failed to verify certificate: " + err.Error())
+			return 6
+		} else {
+			o.Log().Infof("Certificate is valid for %s", dnsName)
+		}
+	}
+
+	return 0
+
 }
 
 func (o *Secret) client() k8sApiTyped.SecretInterface {

@@ -1,9 +1,6 @@
 package kubecfssl
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"github.com/foxdalas/kube-cfssl/pkg/kubecfssl_const"
 	"github.com/foxdalas/kube-cfssl/pkg/cfssl"
@@ -82,10 +79,9 @@ func (kc *KubeCfssl) Init() {
 					kc.SaveSecret(cs.GetCertificate(kc.address, kc.authKey, kc.csrConfig, cs.CreateKey()))
 				} else {
 					kc.Log().Printf("Secret for namespace %s already exist", kc.namespace)
-					validate := kc.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"], string(s.SecretApi.Type))
-					if validate != 0 {
+					if s.Validate() != 0 {
 						//More information in ValidateTLS
-						if validate > 1 {
+						if s.Validate() > 1 {
 							kc.SaveSecret(cs.GetCertificate(kc.address, kc.authKey, kc.csrConfig, cs.CreateKey()))
 						} else {
 							continue
@@ -202,67 +198,5 @@ func (kc *KubeCfssl) paramsCF() error {
 func (kc *KubeCfssl) SaveSecret(data map[string][]byte) error {
 	s := kc.cfsslSecret()
 	s.SecretApi.Data = data
-	s.SecretApi.Type = kubecfssl.SecretType
 	return s.Save()
-}
-
-func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte, secretType string) int {
-
-	//Error codes:
-	//0 - Without Errors
-	//1 - Failed to decode certificate PEM
-	//2 - Failed to parse certificate PEM
-	//3 - Certificate expire date > Threshold
-	//4 - Certificate and key mismatch
-	//5 - Failed to parse ROOT Certificate
-	//6 - Failed to validate certificate for DNS name
-
-	block, _ := pem.Decode(certByte)
-
-	if block == nil {
-		c.Log().Errorln("Failed to parse certificate PEM")
-		return 1
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		c.Log().Printf("Failed to parse certificate: %s", err)
-		return 2
-	}
-	if (cert.NotAfter.Unix() - time.Now().Unix()) < int64(kubecfssl.ExpireThreshold) {
-		c.Log().Warningf("Certificate expire date > Threshold ")
-		return 3
-	} else {
-		c.Log().Infoln("Certificate expire date is OK")
-	}
-
-	_, err = tls.X509KeyPair(certByte, keyByte)
-	if err != nil {
-		c.Log().Warningln("Certificate cert/key is mismatch")
-		return 4
-	} else {
-		c.Log().Infoln("Certificate cert/key is OK")
-	}
-
-	roots := x509.NewCertPool()
-	ok := roots.AppendCertsFromPEM(caByte)
-	if !ok {
-		log.Warnln("Failed to parse root certificate")
-		return 5
-	}
-
-	for _, dnsName := range cert.DNSNames {
-		opts := x509.VerifyOptions{
-			DNSName: dnsName,
-			Roots:   roots,
-		}
-		c.Log().Infof("Validating certificate for DNS name: %s", dnsName)
-		if _, err := cert.Verify(opts); err != nil {
-			c.Log().Warnf("failed to verify certificate: " + err.Error())
-			return 6
-		} else {
-			c.Log().Infof("Certificate is valid for %s", dnsName)
-		}
-	}
-
-	return 0
 }

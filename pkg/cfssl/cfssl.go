@@ -27,7 +27,7 @@ func New(kubecfssl kubecfssl.KubeCfssl) *Cfssl {
 
 	if kubecfssl != nil {
 		c.log = c.kubecfssl.Log().WithField("context", "cfssl")
-		c.notFound = fmt.Sprintf("cfkube (version %s) - 404 not found", kubecfssl.Version())
+		c.notFound = fmt.Sprintf("kube-cfssl (version %s) - 404 not found", kubecfssl.Version())
 	} else {
 		c.log = logrus.WithField("context", "cfssl")
 	}

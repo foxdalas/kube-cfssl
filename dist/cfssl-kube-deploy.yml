@@ -16,11 +16,11 @@ spec:
         imagePullPolicy: IfNotPresent
         name: cfssl-kube
         env:
-          - name: CFKUBE_CFSSL_ADDRESS
+          - name: CFSSL_ADDRESS
             value: https://pki.example.com
-          - name: CFKUBE_CFSSL_AUTH_KEY
+          - name: CFSSL_AUTH_KEY
             value: VerySecretKey
-          - name: CFKUBE_CFSSL_CSR
+          - name: CSR_FILE
             value: ""
-          - name: CFKUBE_NAMESPACES
+          - name: NAMESPACES
             value: cfssl-gate

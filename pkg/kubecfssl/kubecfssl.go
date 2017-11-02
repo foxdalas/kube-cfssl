@@ -34,7 +34,7 @@ func (kc *KubeCfssl) Log() *log.Entry {
 }
 
 func (kc *KubeCfssl) Init() {
-	kc.Log().Infof("cfkube %s starting", kc.version)
+	kc.Log().Infof("kube-cfssl %s starting", kc.version)
 
 	// handle sigterm correctly
 	c := make(chan os.Signal, 1)
@@ -79,8 +79,13 @@ func (kc *KubeCfssl) Init() {
 				} else {
 					kc.Log().Printf("Secret for namespace %s already exist", kc.namespace)
 					validate := kc.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"])
-					if !validate {
-						//kc.SaveSecret(cs.GetCertificate(kc.cfAddress, kc.cfAuthKey, kc.cfCSRConfig, cs.CreateKey()))
+					if validate != 0 {
+						//More information in ValidateTLS
+						if validate > 1 {
+							kc.SaveSecret(cs.GetCertificate(kc.address, kc.authKey, kc.csrConfig, cs.CreateKey()))
+						} else {
+							continue
+						}
 						kc.Log().Println("Certificate validation problem.")
 					}
 				}
@@ -96,7 +101,7 @@ func (kc *KubeCfssl) Init() {
 }
 
 func makeLog() *log.Entry {
-	logtype := strings.ToLower(os.Getenv("CFKUBE_LOG_TYPE"))
+	logtype := strings.ToLower(os.Getenv("LOG_TYPE"))
 	if logtype == "" {
 		logtype = "text"
 	}
@@ -106,11 +111,11 @@ func makeLog() *log.Entry {
 	} else if logtype == "text" {
 		log.SetFormatter(&log.TextFormatter{})
 	} else {
-		log.WithField("logtype", logtype).Fatal("Given logtype was not valid, check CFKUBELOG_TYPE configuration")
+		log.WithField("logtype", logtype).Fatal("Given logtype was not valid, check LOG_TYPE configuration")
 		os.Exit(1)
 	}
 
-	loglevel := strings.ToLower(os.Getenv("LEGO_LOG_LEVEL"))
+	loglevel := strings.ToLower(os.Getenv("LOG_LEVEL"))
 	if len(loglevel) == 0 {
 		log.SetLevel(log.InfoLevel)
 	} else if loglevel == "debug" {
@@ -124,7 +129,7 @@ func makeLog() *log.Entry {
 	} else {
 		log.SetLevel(log.InfoLevel)
 	}
-	return log.WithField("context", "cfkube")
+	return log.WithField("context", "kube-cfssl")
 }
 
 func (kc *KubeCfssl) Version() string {
@@ -196,22 +201,31 @@ func (kc *KubeCfssl) SaveSecret(data map[string][]byte) error {
 	return s.Save()
 }
 
-func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) bool {
+func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) int {
+
+	//Error codes:
+	//0 - Without Errors
+	//1 - Failed to decode certificate PEM
+	//2 - Failed to parse certificate PEM
+	//3 - Certificate expire date > Threshold
+	//4 - Certificate and key mismatch
+	//5 - Failed to parse ROOT Certificate
+	//6 - Failed to validate certificate for DNS name
 
 	block, _ := pem.Decode(certByte)
 
 	if block == nil {
 		c.Log().Errorln("Failed to parse certificate PEM")
-		return false
+		return 1
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		c.Log().Printf("Failed to parse certificate: %s", err)
-		return false
+		return 2
 	}
 	if (cert.NotAfter.Unix() - time.Now().Unix()) < int64(kubecfssl.ExpireThreshold) {
 		c.Log().Warningf("Certificate expire date > Threshold ")
-		return false
+		return 3
 	} else {
 		c.Log().Infoln("Certificate expire date is OK")
 	}
@@ -219,7 +233,7 @@ func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) 
 	_, err = tls.X509KeyPair(certByte, keyByte)
 	if err != nil {
 		c.Log().Warningln("Certificate cert/key is mismatch")
-		return false
+		return 4
 	} else {
 		c.Log().Infoln("Certificate cert/key is OK")
 	}
@@ -228,7 +242,7 @@ func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) 
 	ok := roots.AppendCertsFromPEM(caByte)
 	if !ok {
 		log.Warnln("Failed to parse root certificate")
-		return false
+		return 5
 	}
 
 	for _, dnsName := range cert.DNSNames {
@@ -239,11 +253,11 @@ func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) 
 		c.Log().Infof("Validating certificate for DNS name: %s", dnsName)
 		if _, err := cert.Verify(opts); err != nil {
 			c.Log().Warnf("failed to verify certificate: " + err.Error())
-			return false
+			return 6
 		} else {
 			c.Log().Infof("Certificate is valid for %s", dnsName)
 		}
 	}
 
-	return true
+	return 0
 }

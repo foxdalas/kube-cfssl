@@ -1,5 +1,5 @@
 ACCOUNT=foxdalas
-APP_NAME=cfssl-kube
+APP_NAME=kube-cfssl
 
 PACKAGE_NAME=github.com/${ACCOUNT}/${APP_NAME}
 GO_VERSION=1.9.1

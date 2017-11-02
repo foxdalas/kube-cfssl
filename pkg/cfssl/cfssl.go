@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl_const"
+	"github.com/foxdalas/kube-cfssl/pkg/kubecfssl_const"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"

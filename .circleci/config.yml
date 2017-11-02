@@ -1,12 +1,12 @@
 version: 2
 defaults: &defaults
-  working_directory: /go/src/github.com/foxdalas/cfssl-kube
+  working_directory: /go/src/github.com/foxdalas/kube-cfssl
   docker:
     - image: circleci/golang:1.9.1
       environment:
-        DOCKER_IMAGE_NAME: foxdalas/cfssl-kube
-        QUAY_IMAGE_NAME: quay.io/foxdalas/cfssl-kube
-        REPO_PATH: cfssl-kube
+        DOCKER_IMAGE_NAME: foxdalas/kube-cfssl
+        QUAY_IMAGE_NAME: quay.io/foxdalas/kube-cfssl
+        REPO_PATH: kube-cfssl
 
 jobs:
   build:
@@ -39,8 +39,8 @@ jobs:
             cp Makefile _build/
             docker images
       - store_artifacts:
-          path: /go/src/github.com/foxdalas/cfssl-kube/_build
-          destination: cfssl-kube
+          path: /go/src/github.com/foxdalas/kube-cfssl/_build
+          destination: kube-cfssl
       - persist_to_workspace:
           root: /go/src/github.com/foxdalas
-          paths: cfssl-kube
+          paths: kube-cfssl

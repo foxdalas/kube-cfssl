@@ -1,7 +1,7 @@
 package secret
 
 import (
-	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl_const"
+	"github.com/foxdalas/kube-cfssl/pkg/kubecfssl_const"
 
 	k8sApi "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"

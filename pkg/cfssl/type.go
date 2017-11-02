@@ -1,7 +1,7 @@
 package cfssl
 
 import (
-	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl_const"
+	"github.com/foxdalas/kube-cfssl/pkg/kubecfssl_const"
 	"github.com/sirupsen/logrus"
 )
 

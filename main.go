@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl"
+	"github.com/foxdalas/kube-cfssl/pkg/kubecfssl"
 )
 
 var AppVersion = "unknown"

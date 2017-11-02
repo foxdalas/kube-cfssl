@@ -1,4 +1,4 @@
-package cfkube
+package kubecfssl
 
 import (
 	log "github.com/sirupsen/logrus"
@@ -8,23 +8,24 @@ import (
 	"time"
 )
 
-type CFKube struct {
+type KubeCfssl struct {
 	version string
 	log     *log.Entry
 
-	cfAddress    string
-	cfAuthKey    string
-	cfCSRConfig  []byte
-	cfNamespace  string
-	cfSecretName string
+	//KubeCFSSL Variables
+	address    string
+	authKey    string
+	csrConfig  []byte
+	namespace  string
+	secretName string
 
-	cfCheckInterval time.Duration
+	checkInterval time.Duration
 	//cfsslClient	cfkubeCfssl
 
+	//Kubernets Variables
 	kubeClient *kubernetes.Clientset
-
-	cfKubeApiURL     string
-	cfKubeNamespaces []string
+	kubeApiURL     string
+	kubeNamespaces []string
 
 	stopCh    chan struct{}
 	waitGroup sync.WaitGroup

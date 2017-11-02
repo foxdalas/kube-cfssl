@@ -1,4 +1,4 @@
-package cfkube
+package kubecfssl
 
 import (
 	"github.com/sirupsen/logrus"
@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-type CFKube interface {
+type KubeCfssl interface {
 	KubeClient() *k8sApi.Clientset
 
 	Version() string
 	Log() *logrus.Entry
 
-	CFKubeCheckInterval() time.Duration
-	CFNamespace() string
+	KubeCheckInterval() time.Duration
+	Namespace() string
 	//ValidateTLS() bool
 }
 
@@ -25,7 +25,7 @@ type Cfssl interface {
 
 type Secret interface {
 	Object() *k8sCore.Secret
-	KubeLego() CFKube
+	KubeLego() KubeCfssl
 	Exists() bool
 	Save() error
 	TlsDomains() ([]string, error)

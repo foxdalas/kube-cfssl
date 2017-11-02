@@ -1,4 +1,4 @@
-package cfkube
+package kubecfssl
 
 import (
 	k8sApi "k8s.io/api/core/v1"

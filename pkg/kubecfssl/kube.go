@@ -1,4 +1,4 @@
-package cfkube
+package kubecfssl
 
 import (
 	"errors"
@@ -8,21 +8,21 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func (cf *CFKube) InitKube() error {
+func (kc *KubeCfssl) InitKube() error {
 	// Try in cluster client first
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		cf.Log().Warnf("failed to create in-cluster client: %v.", err)
+		kc.Log().Warnf("failed to create in-cluster client: %v.", err)
 
 		// fall back to kubeconfig
 		// TODO: Link to kubeconfig
 		config, err = clientcmd.BuildConfigFromFlags("", "/Users/fox/.kube/config")
 		if err != nil {
-			cf.Log().Warnf("failed to create kubeconfig client: %v.", err)
+			kc.Log().Warnf("failed to create kubeconfig client: %v.", err)
 			return errors.New("kube init failed as both in-cluster and dev connection unavailable")
 		}
 	}
-	cf.Log().Info("connecting to kubernetes api: ", config.Host)
+	kc.Log().Info("connecting to kubernetes api: ", config.Host)
 
 	kubeClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -33,12 +33,12 @@ func (cf *CFKube) InitKube() error {
 	if err != nil {
 		return err
 	}
-	cf.Log().Infof("successfully connected to kubernetes api %s", version.String())
+	kc.Log().Infof("successfully connected to kubernetes api %s", version.String())
 
-	cf.kubeClient = kubeClient
+	kc.kubeClient = kubeClient
 	return nil
 }
 
-func (cf *CFKube) Namespace() string {
-	return cf.cfNamespace
+func (kc *KubeCfssl) Namespace() string {
+	return kc.namespace
 }

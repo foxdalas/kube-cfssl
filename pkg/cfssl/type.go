@@ -1,18 +1,17 @@
 package cfssl
 
 import (
-	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
+	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl_const"
 	"github.com/sirupsen/logrus"
 )
 
 type Cfssl struct {
-	cfkube.Cfssl
-
-	log *logrus.Entry
-
-	cfkube cfkube.CFKube
+	kubecfssl.Cfssl
+	kubecfssl kubecfssl.KubeCfssl
 
 	notFound string
+	log *logrus.Entry
+
 }
 
 type AuthRequest struct {

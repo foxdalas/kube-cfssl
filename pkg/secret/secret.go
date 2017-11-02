@@ -1,7 +1,7 @@
 package secret
 
 import (
-	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
+	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl_const"
 
 	k8sApi "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,10 +15,10 @@ import (
 	"time"
 )
 
-func New(client cfkube.CFKube, namespace string, name string) *Secret {
+func New(client kubecfssl.KubeCfssl, namespace string, name string) *Secret {
 	secret := &Secret{
 		exists: true,
-		cfkube: client,
+		kubecfssl: client,
 	}
 
 	var err error
@@ -44,8 +44,8 @@ func New(client cfkube.CFKube, namespace string, name string) *Secret {
 	return secret
 }
 
-func (o *Secret) CFKube() cfkube.CFKube {
-	return o.cfkube
+func (o *Secret) KubeCfssl() kubecfssl.KubeCfssl {
+	return o.kubecfssl
 }
 
 func (o *Secret) Object() *k8sApi.Secret {
@@ -57,11 +57,11 @@ func (o *Secret) Exists() bool {
 }
 
 func (o *Secret) client() k8sApiTyped.SecretInterface {
-	return o.cfkube.KubeClient().CoreV1().Secrets(o.SecretApi.Namespace)
+	return o.kubecfssl.KubeClient().CoreV1().Secrets(o.SecretApi.Namespace)
 }
 
 func (o *Secret) Log() *logrus.Entry {
-	log := o.cfkube.Log().WithField("context", "secret")
+	log := o.kubecfssl.Log().WithField("context", "secret")
 
 	if o.SecretApi != nil && o.SecretApi.Name != "" {
 		log = log.WithField("name", o.SecretApi.Name)
@@ -73,7 +73,7 @@ func (o *Secret) Log() *logrus.Entry {
 }
 
 func (o *Secret) tlsCertPem() (cert *x509.Certificate, err error) {
-	key := cfkube.TLSCertKey
+	key := kubecfssl.TLSCertKey
 
 	certBytes, ok := o.SecretApi.Data[key]
 	if !ok {

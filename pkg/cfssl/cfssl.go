@@ -12,21 +12,21 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
+	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl_const"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"os"
 )
 
-func New(cfKube cfkube.CFKube) *Cfssl {
+func New(kubecfssl kubecfssl.KubeCfssl) *Cfssl {
 	c := &Cfssl{
-		cfkube: cfKube,
+		kubecfssl: kubecfssl,
 	}
 
-	if cfKube != nil {
-		c.log = c.cfkube.Log().WithField("context", "cfssl")
-		c.notFound = fmt.Sprintf("cfkube (version %s) - 404 not found", cfKube.Version())
+	if kubecfssl != nil {
+		c.log = c.kubecfssl.Log().WithField("context", "cfssl")
+		c.notFound = fmt.Sprintf("cfkube (version %s) - 404 not found", kubecfssl.Version())
 	} else {
 		c.log = logrus.WithField("context", "cfssl")
 	}
@@ -78,7 +78,7 @@ func (c *Cfssl) Log() (log *logrus.Entry) {
 }
 
 func (c *Cfssl) CreateKey() []byte {
-	key, err := rsa.GenerateKey(rand.Reader, cfkube.RsaKeySize)
+	key, err := rsa.GenerateKey(rand.Reader, kubecfssl.RsaKeySize)
 	c.checkError(err)
 
 	priv_der := x509.MarshalPKCS1PrivateKey(key)
@@ -97,7 +97,7 @@ func (c *Cfssl) CreateKey() []byte {
 func (c *Cfssl) getCA(pkiURL string, method string) []byte {
 	var infoResponse InfoResponse
 	var jsonStr = []byte(`{"profile": "peer"}`)
-	req, err := http.NewRequest("POST", pkiURL+cfkube.PKIUri+method, bytes.NewBuffer(jsonStr))
+	req, err := http.NewRequest("POST", pkiURL+kubecfssl.PKIUri+method, bytes.NewBuffer(jsonStr))
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)

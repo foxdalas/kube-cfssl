@@ -1,11 +1,11 @@
-package cfkube
+package kubecfssl
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"github.com/foxdalas/cfssl-kube/pkg/cfkube_const"
+	"github.com/foxdalas/cfssl-kube/pkg/kubecfssl_const"
 	"github.com/foxdalas/cfssl-kube/pkg/cfssl"
 	"github.com/foxdalas/cfssl-kube/pkg/secret"
 	log "github.com/sirupsen/logrus"
@@ -18,10 +18,10 @@ import (
 	"time"
 )
 
-var _ cfkube.CFKube = &CFKube{}
+var _ kubecfssl.KubeCfssl = &KubeCfssl{}
 
-func New(version string) *CFKube {
-	return &CFKube{
+func New(version string) *KubeCfssl {
+	return &KubeCfssl{
 		version:   version,
 		log:       makeLog(),
 		stopCh:    make(chan struct{}),
@@ -29,69 +29,69 @@ func New(version string) *CFKube {
 	}
 }
 
-func (cf *CFKube) Log() *log.Entry {
-	return cf.log
+func (kc *KubeCfssl) Log() *log.Entry {
+	return kc.log
 }
 
-func (cf *CFKube) Init() {
-	cf.Log().Infof("cfkube %s starting", cf.version)
+func (kc *KubeCfssl) Init() {
+	kc.Log().Infof("cfkube %s starting", kc.version)
 
 	// handle sigterm correctly
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		s := <-c
-		logger := cf.Log().WithField("signal", s.String())
+		logger := kc.Log().WithField("signal", s.String())
 		logger.Debug("received signal")
-		cf.Stop()
+		kc.Stop()
 	}()
 
 	// parse env vars
-	err := cf.paramsCF()
+	err := kc.paramsCF()
 	if err != nil {
-		cf.Log().Fatal(err)
+		kc.Log().Fatal(err)
 	}
 
-	err = cf.InitKube()
+	err = kc.InitKube()
 	if err != nil {
-		cf.Log().Fatal(err)
+		kc.Log().Fatal(err)
 	}
 
-	cf.Log().Infoln("Periodically check start")
-	ticker := time.NewTicker(cf.cfCheckInterval)
-	cs := cfssl.New(cf)
+	kc.Log().Infoln("Periodically check start")
+	ticker := time.NewTicker(kc.checkInterval)
+	cs := cfssl.New(kc)
 	go func() {
 		timestamp := time.Now()
-			cf.Log().Infof("Periodically check certificates at %s", timestamp)
-			for _, namespace := range cf.cfKubeNamespaces {
-				cf.cfNamespace = namespace
-				cf.cfSecretName = "cfssl-tls-secret"
-				cf.Log().Infoln("Checking namespace:", cf.cfNamespace)
+			kc.Log().Infof("Periodically check certificates at %s", timestamp)
+			for _, namespace := range kc.kubeNamespaces {
+				kc.namespace = namespace
+				kc.secretName = "cfssl-tls-secret"
+				kc.Log().Infoln("Checking namespace:", kc.namespace)
 
-				s := secret.New(cf, namespace, "cfssl-tls-secret")
+				s := secret.New(kc, namespace, "cfssl-tls-secret")
 
 				s.SecretApi.Name = "cfssl-tls-secret"
 				s.SecretApi.Namespace = namespace
 
 				if !s.Exists() {
-					cf.Log().Printf("Secret for namespace %s is not exist", cf.cfNamespace)
-					cf.SaveSecret(cs.GetCertificate(cf.cfAddress, cf.cfAuthKey, cf.cfCSRConfig, cs.CreateKey()))
+					kc.Log().Printf("Secret for namespace %s is not exist", kc.namespace)
+					kc.SaveSecret(cs.GetCertificate(kc.address, kc.authKey, kc.csrConfig, cs.CreateKey()))
 				} else {
-					cf.Log().Printf("Secret for namespace %s already exist", cf.cfNamespace)
-					validate := cf.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"])
+					kc.Log().Printf("Secret for namespace %s already exist", kc.namespace)
+					validate := kc.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"])
 					if !validate {
-						//cf.SaveSecret(cs.GetCertificate(cf.cfAddress, cf.cfAuthKey, cf.cfCSRConfig, cs.CreateKey()))
-						cf.Log().Println("Certificate validation problem.")
+						//kc.SaveSecret(cs.GetCertificate(kc.cfAddress, kc.cfAuthKey, kc.cfCSRConfig, cs.CreateKey()))
+						kc.Log().Println("Certificate validation problem.")
 					}
 				}
 			}
 		<- ticker.C
 	}()
 
-	<-cf.stopCh
+	<-kc.stopCh
 	ticker.Stop()
-	cf.Log().Infof("exiting")
-	cf.waitGroup.Wait()
+	kc.Log().Infof("exiting")
+	kc.waitGroup.Wait()
 
 }
 
@@ -127,76 +127,76 @@ func makeLog() *log.Entry {
 	return log.WithField("context", "cfkube")
 }
 
-func (cf *CFKube) Version() string {
-	return cf.version
+func (kc *KubeCfssl) Version() string {
+	return kc.version
 }
 
-func (cf *CFKube) Stop() {
-	cf.Log().Info("shutting things down")
-	close(cf.stopCh)
+func (kc *KubeCfssl) Stop() {
+	kc.Log().Info("shutting things down")
+	close(kc.stopCh)
 }
 
-func (cf *CFKube) CFNamespace() string {
-	return cf.cfNamespace
+func (kc *KubeCfssl) CFNamespace() string {
+	return kc.namespace
 }
 
-func (cf *CFKube) CFKubeCheckInterval() time.Duration {
-	return cf.cfCheckInterval
+func (kc *KubeCfssl) KubeCheckInterval() time.Duration {
+	return kc.checkInterval
 }
 
-func (cf *CFKube) CFKubeApiURL() string {
-	return cf.cfKubeApiURL
+func (kc *KubeCfssl) KubeApiURL() string {
+	return kc.kubeApiURL
 }
 
-func (cf *CFKube) KubeClient() *kubernetes.Clientset {
-	return cf.kubeClient
+func (kc *KubeCfssl) KubeClient() *kubernetes.Clientset {
+	return kc.kubeClient
 }
 
-func (cf *CFKube) cfsslSecret() *secret.Secret {
-	return secret.New(cf, cf.cfNamespace, cf.cfSecretName)
+func (kc *KubeCfssl) cfsslSecret() *secret.Secret {
+	return secret.New(kc, kc.namespace, kc.secretName)
 }
 
-func (cf *CFKube) paramsCF() error {
+func (kc *KubeCfssl) paramsCF() error {
 
-	cf.cfAddress = os.Getenv("CFKUBE_CFSSL_ADDRESS")
-	if len(cf.cfAddress) == 0 {
+	kc.address = os.Getenv("CFKUBE_CFSSL_ADDRESS")
+	if len(kc.address) == 0 {
 		return errors.New("Please provide an address for CFSSL Server in CFKUBE_CFSSL_ADDRESS")
 	}
 
-	cf.cfAuthKey = os.Getenv("CFKUBE_CFSSL_AUTH_KEY")
-	if len(cf.cfAuthKey) == 0 {
+	kc.authKey = os.Getenv("CFKUBE_CFSSL_AUTH_KEY")
+	if len(kc.authKey) == 0 {
 		return errors.New("Please provide the secret key via environment variable CFKUBE_CFSSL_AUTH_KEY ")
 	}
 
 	checkIntervalString := os.Getenv("CFKUBE_CHECK_INTERVAL")
 	if len(checkIntervalString) == 0 {
-		cf.cfCheckInterval = 1 * time.Minute
+		kc.checkInterval = 1 * time.Minute
 	}
-	cf.cfCSRConfig = []byte(os.Getenv("CFKUBE_CFSSL_CSR"))
-	if len(cf.cfCSRConfig) == 0 {
+	kc.csrConfig = []byte(os.Getenv("CFKUBE_CFSSL_CSR"))
+	if len(kc.csrConfig) == 0 {
 		return errors.New("Please provide the secret key via environment variable CFKUBE_CFSSL_CSR ")
 	}
 
-	cf.cfKubeApiURL = os.Getenv("CFKUBE_KUBE_API_URL")
-	if len(cf.cfKubeApiURL) == 0 {
-		cf.cfKubeApiURL = "http://127.0.0.1:8080"
+	kc.kubeApiURL = os.Getenv("CFKUBE_KUBE_API_URL")
+	if len(kc.kubeApiURL) == 0 {
+		kc.kubeApiURL = "http://127.0.0.1:8080"
 	}
 
-	cf.cfKubeNamespaces = strings.Split(os.Getenv("CFKUBE_NAMESPACES"), ",")
-	if len(cf.cfKubeNamespaces) == 0 {
+	kc.kubeNamespaces = strings.Split(os.Getenv("CFKUBE_NAMESPACES"), ",")
+	if len(kc.kubeNamespaces) == 0 {
 		return errors.New("Please provide the namespaces via environment variable CFKUBE_NAMESPACES (default,test,production)")
 	}
 
 	return nil
 }
 
-func (cf *CFKube) SaveSecret(data map[string][]byte) error {
-	s := cf.cfsslSecret()
+func (kc *KubeCfssl) SaveSecret(data map[string][]byte) error {
+	s := kc.cfsslSecret()
 	s.SecretApi.Data = data
 	return s.Save()
 }
 
-func (c *CFKube) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) bool {
+func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) bool {
 
 	block, _ := pem.Decode(certByte)
 
@@ -209,7 +209,7 @@ func (c *CFKube) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) boo
 		c.Log().Printf("Failed to parse certificate: %s", err)
 		return false
 	}
-	if (cert.NotAfter.Unix() - time.Now().Unix()) < int64(cfkube.ExpireThreshold) {
+	if (cert.NotAfter.Unix() - time.Now().Unix()) < int64(kubecfssl.ExpireThreshold) {
 		c.Log().Warningf("Certificate expire date > Threshold ")
 		return false
 	} else {

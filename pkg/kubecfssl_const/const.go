@@ -12,3 +12,5 @@ const TLSPrivateKeyKey = k8sApi.TLSPrivateKeyKey
 const ExpireThreshold = 604800
 
 const PKIUri = "/api/v1/cfssl/"
+
+const SecretType = "kubernetes.io/tls"

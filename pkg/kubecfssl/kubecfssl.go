@@ -52,6 +52,10 @@ func (kc *KubeCfssl) Init() {
 		kc.Log().Fatal(err)
 	}
 
+	if _, err := os.Stat(kc.csrConfig); os.IsNotExist(err) {
+		kc.Log().Fatalf("CSR Configuration file not found in %s", kc.csrConfig)
+	}
+
 	err = kc.InitKube()
 	if err != nil {
 		kc.Log().Fatal(err)
@@ -78,7 +82,7 @@ func (kc *KubeCfssl) Init() {
 					kc.SaveSecret(cs.GetCertificate(kc.address, kc.authKey, kc.csrConfig, cs.CreateKey()))
 				} else {
 					kc.Log().Printf("Secret for namespace %s already exist", kc.namespace)
-					validate := kc.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"])
+					validate := kc.ValidateTLS(s.SecretApi.Data["ca.pem"], s.SecretApi.Data["crt.pem"], s.SecretApi.Data["crt.key"], string(s.SecretApi.Type))
 					if validate != 0 {
 						//More information in ValidateTLS
 						if validate > 1 {
@@ -198,10 +202,11 @@ func (kc *KubeCfssl) paramsCF() error {
 func (kc *KubeCfssl) SaveSecret(data map[string][]byte) error {
 	s := kc.cfsslSecret()
 	s.SecretApi.Data = data
+	s.SecretApi.Type = kubecfssl.SecretType
 	return s.Save()
 }
 
-func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte) int {
+func (c *KubeCfssl) ValidateTLS(caByte []byte, certByte []byte, keyByte []byte, secretType string) int {
 
 	//Error codes:
 	//0 - Without Errors

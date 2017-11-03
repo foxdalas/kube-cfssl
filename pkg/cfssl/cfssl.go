@@ -37,8 +37,8 @@ func New(kubecfssl kubecfssl.KubeCfssl) *Cfssl {
 
 func (c *Cfssl) getBundle() {
 	c.certificateData[kubecfssl.BundleCertificateName] = []byte(string(string(c.certificateData[kubecfssl.CertificateName]) +
-		string(c.certificateData[kubecfssl.RootCertificateName]) +
-		string(c.certificateData[kubecfssl.CertificateKeyName])))
+		string(c.certificateData[kubecfssl.RootCertificateName]) + "\n" +
+			string(c.certificateData[kubecfssl.CertificateKeyName])))
 }
 
 func (c *Cfssl) GetCertificate(pkiURL string, authKey string, csrConfig string) map[string][]byte {
@@ -58,7 +58,6 @@ func (c *Cfssl) certificateRequest (pkiURL string, authKey string,csrConfig stri
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	c.checkError(err)
-	defer resp.Body.Close()
 
 	return resp
 }
@@ -136,7 +135,6 @@ func (c *Cfssl) constructAuthRequest(key string, request []byte) string {
 	reqJson, _ := json.Marshal(reqData)
 	jsonStr := string(reqJson)
 	c.Log().Infoln("Processing certificate request")
-
 	c.Log().Debugln("JSON Request: ", string(jsonStr))
 	return jsonStr
 }
@@ -149,8 +147,10 @@ func (c *Cfssl) ComputeHmac256(message []byte, secret string) string {
 }
 
 func (c *Cfssl) getCRT(resp *http.Response) []byte {
+
 	if resp.StatusCode  == 200 {
 		body, _ := ioutil.ReadAll(resp.Body)
+
 		var response Response
 		json.Unmarshal([]byte(body), &response)
 		c.Log().Infoln("Certificate generation complete")
